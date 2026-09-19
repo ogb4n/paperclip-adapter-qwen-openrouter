@@ -1,0 +1,48 @@
+{
+  "name": "paperclip-adapter-qwen-openrouter",
+  "version": "0.4.0",
+  "description": "Paperclip adapter that runs Qwen, Gemma, Hermes, and other OpenRouter models as a tool-loop agent — checkout, comment, and patch issues without a local CLI.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "paperclip",
+    "paperclip-adapter",
+    "openrouter",
+    "qwen",
+    "gemma",
+    "hermes",
+    "ai-agent",
+    "adapter",
+    "orchestration"
+  ],
+  "paperclip": {
+    "adapterUiParser": "1.0.0"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./server": "./dist/server/index.js",
+    "./ui-parser": "./dist/ui-parser.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test --test-reporter=spec dist",
+    "prepack": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@paperclipai/adapter-utils": "^2026.325.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
