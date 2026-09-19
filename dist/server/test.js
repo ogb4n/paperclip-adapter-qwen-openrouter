@@ -28,7 +28,7 @@ function readApiKey(config, env) {
 export async function testEnvironment(ctx) {
     const checks = [];
     const config = parseObject(ctx.config);
-    const baseUrl = (asString(config.apiBaseUrl, DEFAULT_OPENROUTER_BASE_URL) || DEFAULT_OPENROUTER_BASE_URL).replace(/\/$/, "");
+    const baseUrl = (asString(config.apiBaseUrl, process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL) || process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/$/, "");
     const model = (asString(config.model, DEFAULT_QWEN_MODEL) || DEFAULT_QWEN_MODEL).trim();
     const envConfig = parseObject(config.env);
     const env = {};
