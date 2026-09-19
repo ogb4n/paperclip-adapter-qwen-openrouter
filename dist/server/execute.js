@@ -187,7 +187,7 @@ export async function execute(ctx) {
     const fsAllowOutsideCwd = readBoolean(fsConfig.allowOutsideCwd, false);
     const fsMaxBytes = Math.max(1024, asNumber(fsConfig.maxBytes, DEFAULT_FS_MAX_BYTES));
     const shellTimeoutSec = Math.max(1, Math.min(600, asNumber(shellConfig.timeoutSec, DEFAULT_SHELL_TIMEOUT_SEC)));
-    const maxToolTurns = Math.max(1, Math.min(40, asNumber(config.maxToolTurns, DEFAULT_MAX_TOOL_TURNS)));
+    const maxToolTurns = Math.max(1, Math.min(40, asNumber(config.maxToolTurns, Number(process.env.PAPERCLIP_MAX_TOOL_TURNS) || DEFAULT_MAX_TOOL_TURNS)));
     const sessionMessageCap = Math.max(4, Math.min(200, asNumber(config.sessionMessageCap, DEFAULT_SESSION_MESSAGE_CAP)));
     const workspaceContext = parseObject(context.paperclipWorkspace);
     const workspaceCwd = asString(workspaceContext.cwd, "");
