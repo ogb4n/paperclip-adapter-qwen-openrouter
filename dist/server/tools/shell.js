@@ -19,27 +19,35 @@ function isAllowed(command, allowList) {
 function shq(value) {
     return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
+// Lance `command` dans le bac à sable (cwd donné, groupe de processus tué après timeoutSec) et rend le processus
+// ssh. Partagé avec le pont MCP : ses serveurs stdio tournent eux aussi dans le bac à sable, jamais ici.
+export function spawnRemote(command, cwd, timeoutSec) {
+    if (!sshTarget()) {
+        throw new Error("no sandbox is configured on the server (PAPERCLIP_SHELL_SSH_TARGET)");
+    }
+    const script = `cd -- ${shq(cwd)} && ${command}`;
+    const b64 = Buffer.from(script, "utf8").toString("base64");
+    // `timeout` tue le groupe de processus côté bac à sable au dépassement du délai.
+    const remote = `timeout -k 5 ${timeoutSec} bash -lc "$(printf %s ${b64} | base64 -d)"`;
+    const args = [
+        "-F", "/dev/null", "-T",
+        "-i", SSH_KEY,
+        "-o", "BatchMode=yes",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", `UserKnownHostsFile=${SSH_KNOWN_HOSTS}`,
+        "-o", "ConnectTimeout=10",
+        "-o", "ServerAliveInterval=15",
+        "-o", "LogLevel=ERROR",
+        sshTarget(),
+        remote,
+    ];
+    // Environnement minimal : aucune variable du serveur (clés, secrets) n'est transmise.
+    return spawn("ssh", args, { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: "/nonexistent" } });
+}
 function runRemote(command, cwd, timeoutSec) {
     return new Promise((resolve) => {
-        const script = `cd -- ${shq(cwd)} && ${command}`;
-        const b64 = Buffer.from(script, "utf8").toString("base64");
-        // `timeout` tue le groupe de processus côté bac à sable au dépassement du délai.
-        const remote = `timeout -k 5 ${timeoutSec} bash -lc "$(printf %s ${b64} | base64 -d)"`;
-        const args = [
-            "-F", "/dev/null", "-T",
-            "-i", SSH_KEY,
-            "-o", "BatchMode=yes",
-            "-o", "IdentitiesOnly=yes",
-            "-o", "StrictHostKeyChecking=yes",
-            "-o", `UserKnownHostsFile=${SSH_KNOWN_HOSTS}`,
-            "-o", "ConnectTimeout=10",
-            "-o", "ServerAliveInterval=15",
-            "-o", "LogLevel=ERROR",
-            sshTarget(),
-            remote,
-        ];
-        // Environnement minimal : aucune variable du serveur (clés, secrets) n'est transmise.
-        const child = spawn("ssh", args, { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: "/nonexistent" } });
+        const child = spawnRemote(command, cwd, timeoutSec);
         let stdout = "";
         let stderr = "";
         let timedOut = false;
