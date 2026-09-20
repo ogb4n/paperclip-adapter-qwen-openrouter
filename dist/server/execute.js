@@ -164,7 +164,7 @@ export async function execute(ctx) {
     const { runId, agent, runtime, config, context, onLog, onMeta } = ctx;
     const promptTemplate = asString(config.promptTemplate, "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.");
     const apiBaseUrl = (asString(config.apiBaseUrl, process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL) || process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/$/, "");
-    const model = (asString(config.model, DEFAULT_QWEN_MODEL) || DEFAULT_QWEN_MODEL).trim();
+    const model = (asString(config.model, (process.env.PAPERCLIP_DEFAULT_MODEL || DEFAULT_QWEN_MODEL)) || (process.env.PAPERCLIP_DEFAULT_MODEL || DEFAULT_QWEN_MODEL)).trim();
     const temperature = config.temperature !== undefined && config.temperature !== ""
         ? asNumber(config.temperature, NaN)
         : NaN;

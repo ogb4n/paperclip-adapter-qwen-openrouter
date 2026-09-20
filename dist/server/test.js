@@ -29,7 +29,7 @@ export async function testEnvironment(ctx) {
     const checks = [];
     const config = parseObject(ctx.config);
     const baseUrl = (asString(config.apiBaseUrl, process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL) || process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/$/, "");
-    const model = (asString(config.model, DEFAULT_QWEN_MODEL) || DEFAULT_QWEN_MODEL).trim();
+    const model = (asString(config.model, (process.env.PAPERCLIP_DEFAULT_MODEL || DEFAULT_QWEN_MODEL)) || (process.env.PAPERCLIP_DEFAULT_MODEL || DEFAULT_QWEN_MODEL)).trim();
     const envConfig = parseObject(config.env);
     const env = {};
     for (const [key, value] of Object.entries(envConfig)) {
