@@ -4,6 +4,7 @@ import { asNumber, asString, buildPaperclipEnv, ensureAbsoluteDirectory, joinPro
 import { DEFAULT_OPENROUTER_BASE_URL, DEFAULT_QWEN_MODEL, DEFAULT_TIMEOUT_SEC, type as ADAPTER_TYPE, } from "../index.js";
 import { isAuthError, isToolUseUnsupported, parseOpenRouterResponse } from "./parse.js";
 import { builtinTools, findTool, toOpenRouterTools } from "./tools/index.js";
+import { openMcpSession } from "./mcp/session.js";
 const DEFAULT_MAX_TOOL_TURNS = 12;
 const DEFAULT_SESSION_MESSAGE_CAP = 40;
 const DEFAULT_FS_MAX_BYTES = 256 * 1024;
@@ -160,7 +161,17 @@ function mergeUsage(into, add) {
             : {}),
     };
 }
+// Les serveurs MCP ouverts pendant un run (voir mcp/session.js) sont fermés quelle que soit la sortie du run.
 export async function execute(ctx) {
+    const run = {};
+    try {
+        return await executeRun(ctx, run);
+    }
+    finally {
+        await run.closeMcp?.();
+    }
+}
+async function executeRun(ctx, run) {
     const { runId, agent, runtime, config, context, onLog, onMeta } = ctx;
     const promptTemplate = asString(config.promptTemplate, "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.");
     const apiBaseUrl = (asString(config.apiBaseUrl, process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL) || process.env.OPENROUTER_BASE_URL || DEFAULT_OPENROUTER_BASE_URL).replace(/\/$/, "");
@@ -259,8 +270,11 @@ export async function execute(ctx) {
         fsMaxBytes,
         env,
     };
-    const enabledTools = builtinTools.filter((t) => t.enabled(toolEnvironment));
-    const openRouterTools = toOpenRouterTools(builtinTools, toolEnvironment);
+    const mcpSession = await openMcpSession({ env, cwd, onLog });
+    run.closeMcp = mcpSession.close;
+    const runTools = [...builtinTools, ...mcpSession.tools];
+    const enabledTools = runTools.filter((t) => t.enabled(toolEnvironment));
+    const openRouterTools = toOpenRouterTools(runTools, toolEnvironment);
     const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
     const resolvedInstructionsFilePath = instructionsFilePath ? path.resolve(cwd, instructionsFilePath) : "";
     const instructionsDir = resolvedInstructionsFilePath ? `${path.dirname(resolvedInstructionsFilePath)}/` : "";
@@ -529,7 +543,7 @@ export async function execute(ctx) {
                 input: call.arguments,
                 toolUseId: call.id,
             }) + "\n");
-            const tool = findTool(builtinTools, call.name);
+            const tool = findTool(runTools, call.name);
             let result;
             if (!tool || !tool.enabled(toolEnvironment)) {
                 result = {
