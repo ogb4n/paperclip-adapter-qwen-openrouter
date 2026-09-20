@@ -77,4 +77,4 @@ n'est déclarée que dans `package.json`.
 
 ## État
 
-Dépôt local uniquement, aucun remote. Version `0.4.0-fork.1`.
+Dépôt privé : https://github.com/ogb4n/paperclip-adapter-qwen-openrouter (branche `main`). Version `0.4.0-fork.1`.
