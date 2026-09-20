@@ -252,7 +252,7 @@ export async function execute(ctx) {
         runId,
         paperclipApiUrl,
         paperclipApiKey,
-        shellEnabled,
+        shellEnabled: shellEnabled || String(env.PAPERCLIP_SHELL ?? "") === "1",
         shellAllowList,
         fsAllowOutsideCwd,
         shellTimeoutSec,

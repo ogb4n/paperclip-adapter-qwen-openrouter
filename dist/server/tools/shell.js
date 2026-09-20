@@ -1,14 +1,45 @@
+// Version modifiée de dist/server/tools/shell.js de paperclip-adapter-qwen-openrouter.
+// Différences avec l'original : la commande ne s'exécute JAMAIS dans le conteneur Paperclip ;
+// elle est envoyée par SSH au bac à sable (PAPERCLIP_SHELL_SSH_TARGET, ex. agent@agent-sandbox).
+// Sans cible configurée, l'outil refuse (échec fermé) au lieu de retomber sur bash local.
 import { spawn } from "node:child_process";
 const MAX_SHELL_OUTPUT_BYTES = 64 * 1024;
+const SSH_KEY = "/run/sandbox/key";
+const SSH_KNOWN_HOSTS = "/run/sandbox/known_hosts";
+
+function sshTarget() {
+    return (process.env.PAPERCLIP_SHELL_SSH_TARGET ?? "").trim();
+}
 function isAllowed(command, allowList) {
     if (!allowList || allowList.length === 0)
         return true;
     const trimmed = command.trim();
     return allowList.some((prefix) => trimmed.startsWith(prefix));
 }
-function runBash(command, cwd, timeoutMs, env) {
+function shq(value) {
+    return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+function runRemote(command, cwd, timeoutSec) {
     return new Promise((resolve) => {
-        const child = spawn("bash", ["-lc", command], { cwd, env: { ...process.env, ...env } });
+        const script = `cd -- ${shq(cwd)} && ${command}`;
+        const b64 = Buffer.from(script, "utf8").toString("base64");
+        // `timeout` tue le groupe de processus côté bac à sable au dépassement du délai.
+        const remote = `timeout -k 5 ${timeoutSec} bash -lc "$(printf %s ${b64} | base64 -d)"`;
+        const args = [
+            "-F", "/dev/null", "-T",
+            "-i", SSH_KEY,
+            "-o", "BatchMode=yes",
+            "-o", "IdentitiesOnly=yes",
+            "-o", "StrictHostKeyChecking=yes",
+            "-o", `UserKnownHostsFile=${SSH_KNOWN_HOSTS}`,
+            "-o", "ConnectTimeout=10",
+            "-o", "ServerAliveInterval=15",
+            "-o", "LogLevel=ERROR",
+            sshTarget(),
+            remote,
+        ];
+        // Environnement minimal : aucune variable du serveur (clés, secrets) n'est transmise.
+        const child = spawn("ssh", args, { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: "/nonexistent" } });
         let stdout = "";
         let stderr = "";
         let timedOut = false;
@@ -21,7 +52,7 @@ function runBash(command, cwd, timeoutMs, env) {
             catch {
                 // ignore
             }
-        }, timeoutMs);
+        }, (timeoutSec + 15) * 1000);
         const append = (target, chunk) => {
             const text = chunk.toString("utf8");
             if (target === "stdout") {
@@ -49,6 +80,8 @@ function runBash(command, cwd, timeoutMs, env) {
             clearTimeout(timer);
             if (truncated)
                 stderr += `\n[output truncated at ${MAX_SHELL_OUTPUT_BYTES} bytes]`;
+            if (code === 124 || code === 137)
+                timedOut = true;
             resolve({ exitCode: code, stdout, stderr, timedOut });
         });
         child.on("error", (err) => {
@@ -59,7 +92,7 @@ function runBash(command, cwd, timeoutMs, env) {
 }
 export const shellExecTool = {
     name: "shell_exec",
-    description: "Run a bash command inside the adapter cwd. Disabled by default; opt-in via tools.shell.enabled. Honors tools.shell.allowList prefix matching.",
+    description: "Run a bash command in the isolated sandbox container (non-root, no secrets, restricted network) inside the current workspace directory. Disabled unless enabled for this agent.",
     parameters: {
         type: "object",
         properties: {
@@ -75,13 +108,18 @@ export const shellExecTool = {
         if (typeof params.command !== "string" || params.command.trim().length === 0) {
             return { ok: false, content: "command must be a non-empty string", isError: true };
         }
+        if (sshTarget().length === 0) {
+            return { ok: false, content: "shell_exec is unavailable: no sandbox is configured on the server (PAPERCLIP_SHELL_SSH_TARGET).", isError: true };
+        }
         if (!isAllowed(params.command, env.shellAllowList)) {
             return { ok: false, content: `command rejected by tools.shell.allowList`, isError: true };
         }
         const timeoutSec = typeof params.timeoutSec === "number" && Number.isFinite(params.timeoutSec)
-            ? Math.min(600, Math.max(1, params.timeoutSec))
+            ? Math.min(600, Math.max(1, Math.trunc(params.timeoutSec)))
             : env.shellTimeoutSec;
-        const result = await runBash(params.command, env.cwd, timeoutSec * 1000, env.env);
+        // Trace de référence : journal du serveur (docker logs paperclip).
+        console.log(`[shell_exec] ${JSON.stringify({ ts: new Date().toISOString(), agent: env.agent?.name, cwd: env.cwd, command: params.command.slice(0, 500) })}`);
+        const result = await runRemote(params.command, env.cwd, timeoutSec);
         const blocks = [];
         blocks.push(`exitCode: ${result.exitCode}${result.timedOut ? " (timed out)" : ""}`);
         if (result.stdout)
@@ -95,4 +133,3 @@ export const shellExecTool = {
         };
     },
 };
-//# sourceMappingURL=shell.js.map
