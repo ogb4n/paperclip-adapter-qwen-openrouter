@@ -1,6 +1,6 @@
 {
   "name": "paperclip-adapter-qwen-openrouter",
-  "version": "0.4.0-fork.1",
+  "version": "0.4.0-fork.2",
   "description": "Paperclip adapter that runs Qwen, Gemma, Hermes, and other OpenRouter models as a tool-loop agent — checkout, comment, and patch issues without a local CLI.",
   "type": "module",
   "license": "MIT",
@@ -29,6 +29,9 @@
     "FORK.md"
   ],
   "scripts": {
+    "test:mcp": "node test/mcp.mjs",
+    "test:mcp-execute": "node test/execute-mcp.mjs",
+    "test:mcp-sandbox": "node test/mcp-sandbox.mjs",
     "test:obsidian": "node test/obsidian.mjs",
     "test:shell": "node test/shell.mjs",
     "test:web": "node test/web-search.mjs"
